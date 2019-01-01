@@ -323,9 +323,9 @@ convertLegacyAllPackageFlags globalFlags configFlags
       configDistPref            = projectConfigDistDir,
       configHcFlavor            = projectConfigHcFlavor,
       configHcPath              = projectConfigHcPath,
-      configHcPkg               = projectConfigHcPkg
+      configHcPkg               = projectConfigHcPkg,
     --configProgramPathExtra    = projectConfigProgPathExtra DELETE ME
-    --configInstallDirs         = projectConfigInstallDirs,
+      configInstallDirs         = projectConfigInstallDirs
     --configUserInstall         = projectConfigUserInstall,
     --configPackageDBs          = projectConfigPackageDBs,
     } = configFlags

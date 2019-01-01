@@ -633,7 +633,8 @@ rebuildInstallPlan verbosity
                          (packageLocationsSignature solverPlan) $
             getPackageSourceHashes verbosity withRepoCtx solverPlan
 
-        defaultInstallDirs <- liftIO $ userInstallDirTemplates compiler
+        installDirs <- liftIO $ userInstallDirTemplates compiler (projectConfigInstallDirs projectConfigShared)
+
         (elaboratedPlan, elaboratedShared)
           <- liftIO . runLogProgress verbosity $
               elaborateInstallPlan
@@ -644,7 +645,7 @@ rebuildInstallPlan verbosity
                 solverPlan
                 localPackages
                 sourcePackageHashes
-                defaultInstallDirs
+                installDirs
                 projectConfigShared
                 projectConfigAllPackages
                 projectConfigLocalPackages
@@ -1243,7 +1244,7 @@ elaborateInstallPlan verbosity platform compiler compilerprogdb pkgConfigDB
                      solverPlan localPackages
                      sourcePackageHashes
                      defaultInstallDirs
-                     sharedPackageConfig
+                     sharedProjectConfig
                      allPackagesConfig
                      localPackagesConfig
                      perPackageConfig = do
@@ -1344,7 +1345,7 @@ elaborateInstallPlan verbosity platform compiler compilerprogdb pkgConfigDB
             -- For ease of testing, we let per-component builds be toggled
             -- at the top level
             cuz_flag
-                | fromFlagOrDefault True (projectConfigPerComponent sharedPackageConfig)
+                | fromFlagOrDefault True (projectConfigPerComponent sharedProjectConfig)
                 = []
                 | otherwise = cuz "you passed --disable-per-component"
             -- Enabling program coverage introduces odd runtime dependencies
@@ -3174,12 +3175,17 @@ setupHsScriptOptions (ReadyPackage elab@ElaboratedConfiguredPackage{..})
 -- TODO: [code cleanup] make InstallDirs.defaultInstallDirs pure.
 --
 userInstallDirTemplates :: Compiler
+                        -> InstallDirs.InstallDirs (Flag InstallDirs.PathTemplate)
                         -> IO InstallDirs.InstallDirTemplates
-userInstallDirTemplates compiler = do
-    InstallDirs.defaultInstallDirs
-                  (compilerFlavor compiler)
-                  True  -- user install
-                  False -- unused
+userInstallDirTemplates compiler dirFlags = do
+  defaults <- InstallDirs.defaultInstallDirs
+                           (compilerFlavor compiler)
+                           True  -- user install
+                           False -- unused
+  return $ InstallDirs.combineInstallDirs override dirFlags defaults
+  where
+    override (Flag x) _ = x
+    override NoFlag x   = x
 
 storePackageInstallDirs :: StoreDirLayout
                         -> CompilerId
