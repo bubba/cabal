@@ -111,6 +111,7 @@ Version:            3.3.0.0
         Distribution.Client.CmdRepl
         Distribution.Client.CmdRun
         Distribution.Client.CmdRun.ClientRunFlags
+        Distribution.Client.CmdShowBuildInfo
         Distribution.Client.CmdTest
         Distribution.Client.CmdLegacy
         Distribution.Client.CmdSdist

@@ -53,10 +53,7 @@ module Distribution.Client.Setup
     , doctestCommand
     , copyCommand
     , registerCommand
-
-    --ghc-mod support commands
-    , showBuildInfoCommand
-    , writeAutogenFilesCommand, WriteAutogenFilesFlags(..)
+    --, showBuildInfoCommand
     , parsePackageArgs
     , liftOptions
     , yesNoOpt
@@ -103,7 +100,6 @@ import Distribution.Simple.Setup
          , SDistFlags(..), HaddockFlags(..)
          , CleanFlags(..), DoctestFlags(..)
          , CopyFlags(..), RegisterFlags(..)
-         , WriteAutogenFilesFlags(..)
          , readPackageDbList, showPackageDbList
          , Flag(..), toFlag, flagToMaybe, flagToList, maybeToFlag
          , BooleanFlag(..), optionVerbosity
@@ -197,7 +193,6 @@ globalCommand commands = CommandUI {
           , "haddock"
           , "hscolour"
           , "show-build-info"
-          , "write-autogen-files"
           , "exec"
           , "new-build"
           , "new-configure"
@@ -285,7 +280,6 @@ globalCommand commands = CommandUI {
         , addCmd "report"
         , par
         , addCmd "show-build-info"
-        , addCmd "write-autogen-files"
         , addCmd "freeze"
         , addCmd "gen-bounds"
         , addCmd "outdated"
@@ -868,25 +862,6 @@ filterTestFlags flags cabalLibVersion
       -- Cabal < 3.0 doesn't know about --test-wrapper
       Cabal.testWrapper = NoFlag
       }
-
--- ------------------------------------------------------------
--- * show-build-info command
--- ------------------------------------------------------------
-
-showBuildInfoCommand :: CommandUI (BuildFlags, BuildExFlags)
-showBuildInfoCommand = parent {
-    commandDefaultFlags = (commandDefaultFlags parent, mempty),
-    commandOptions      =
-      \showOrParseArgs -> liftOptions fst setFst
-                          (commandOptions parent showOrParseArgs)
-                          ++
-                          liftOptions snd setSnd (buildExOptions showOrParseArgs)
-  }
-  where
-    setFst a (_,b) = (a,b)
-    setSnd b (a,_) = (a,b)
-
-    parent = Cabal.showBuildInfoCommand defaultProgramDb
 
 -- ------------------------------------------------------------
 -- * Repl command
@@ -2973,10 +2948,10 @@ relevantConfigValuesText vs =
 
 
 -- ------------------------------------------------------------
--- * Commands to support ghc-mod
+-- * Commands to support show-build-info
 -- ------------------------------------------------------------
 
-showBuildInfoCommand :: CommandUI (BuildFlags, BuildExFlags)
+showBuildInfoCommand :: CommandUI (Cabal.ShowBuildInfoFlags, BuildExFlags)
 showBuildInfoCommand = parent {
     commandDefaultFlags = (commandDefaultFlags parent, mempty),
     commandOptions      =
@@ -2990,6 +2965,3 @@ showBuildInfoCommand = parent {
     setSnd b (a,_) = (a,b)
 
     parent = Cabal.showBuildInfoCommand defaultProgramDb
-
-writeAutogenFilesCommand :: CommandUI WriteAutogenFilesFlags
-writeAutogenFilesCommand = Cabal.writeAutogenFilesCommand defaultProgramDb

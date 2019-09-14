@@ -50,7 +50,6 @@ import Distribution.Client.Setup
          , doctestCommand
          , copyCommand
          , registerCommand
-         , WriteAutogenFilesFlags(..)
          )
 import Distribution.Simple.Setup
          ( HaddockTarget(..)
@@ -83,7 +82,6 @@ import qualified Distribution.Client.CmdConfigure as CmdConfigure
 import qualified Distribution.Client.CmdUpdate    as CmdUpdate
 import qualified Distribution.Client.CmdBuild     as CmdBuild
 import qualified Distribution.Client.CmdShowBuildInfo as CmdShowBuildInfo
-import qualified Distribution.Client.CmdWriteAutogenFiles as CmdWriteAutogenFiles
 import qualified Distribution.Client.CmdRepl      as CmdRepl
 import qualified Distribution.Client.CmdFreeze    as CmdFreeze
 import qualified Distribution.Client.CmdHaddock   as CmdHaddock
@@ -155,7 +153,7 @@ import qualified Distribution.Simple as Simple
 import qualified Distribution.Make as Make
 import qualified Distribution.Types.UnqualComponentName as Make
 import Distribution.Simple.Build
-         ( startInterpreter, initialBuildSteps )
+         ( startInterpreter )
 import Distribution.Simple.Command
          ( CommandParse(..), CommandUI(..), Command, CommandSpec(..)
          , CommandType(..), commandsRun, commandAddAction, hiddenCommand
@@ -178,7 +176,7 @@ import Distribution.Simple.Utils
 import Distribution.Text
          ( display )
 import Distribution.Verbosity as Verbosity
-         ( Verbosity, normal, silent )
+         ( Verbosity, normal )
 import Distribution.Version
          ( Version, mkVersion, orLaterVersion )
 import qualified Paths_cabal_install (version)
@@ -277,11 +275,8 @@ mainWorker args = do
       , hiddenCmd  formatCommand formatAction
       , hiddenCmd  actAsSetupCommand actAsSetupAction
       , hiddenCmd  manpageCommand (manpageAction commandSpecs)
-      -- ghc-mod supporting commands
       , hiddenCmd CmdShowBuildInfo.showBuildInfoCommand
                     CmdShowBuildInfo.showBuildInfoAction
-      , hiddenCmd CmdWriteAutogenFiles.writeAutogenFilesCommand
-                    CmdWriteAutogenFiles.writeAutogenFilesAction
       ] ++ concat
       [ newCmd  CmdConfigure.configureCommand CmdConfigure.configureAction
       , newCmd  CmdUpdate.updateCommand       CmdUpdate.updateAction
@@ -430,13 +425,14 @@ buildAction flags@(buildFlags, _) = buildActionForCommand
   flags
   where verbosity = fromFlagOrDefault normal (buildVerbosity buildFlags)
 
-showBuildInfoAction :: (BuildFlags, BuildExFlags) -> [String] -> Action
-showBuildInfoAction flags@(buildFlags, _) = buildActionForCommand
-  (Cabal.showBuildInfoCommand defaultProgramDb)
-  verbosity
-  flags
-    -- Default silent verbosity so as not to pollute json output
-  where verbosity = fromFlagOrDefault silent (buildVerbosity buildFlags)
+-- showBuildInfoAction :: (Cabal.ShowBuildInfoFlags, BuildExFlags) -> [String] -> Action
+-- showBuildInfoAction (showBuildInfoFlags, buildEx) = buildActionForCommand
+--   (Cabal.showBuildInfoCommand defaultProgramDb)
+--   showBuildInfoFlags
+--   verbosity
+--   (Cabal.buildInfoBuildFlags showBuildInfoFlags, buildEx)
+--     -- Default silent verbosity so as not to pollute json output
+--   where verbosity = fromFlagOrDefault silent (buildVerbosity (Cabal.buildInfoBuildFlags showBuildInfoFlags ))
 
 buildActionForCommand :: CommandUI BuildFlags
                       -> Verbosity
@@ -451,23 +447,13 @@ buildActionForCommand commandUI verbosity (buildFlags, buildExFlags) extraArgs g
     distPref             <- findSavedDistPref config (buildDistPref buildFlags)
     -- Calls 'configureAction' to do the real work, so nothing special has to be
     -- done to support sandboxes.
-    config'              <- reconfigure configureAction
-                                        verbosity
-                                        distPref
-                                        useSandbox
-                                        noAddSource
-                                        (buildNumJobs buildFlags)
-                                        mempty
-                                        []
-                                        globalFlags
-                                        config
-    nixShell verbosity distPref globalFlags config $ do
-      maybeWithSandboxDirOnSearchPath useSandbox $ buildForCommand commandUI
-                                                                   verbosity
-                                                                   config'
-                                                                   distPref
-                                                                   buildFlags
-                                                                   extraArgs
+    config'              <- reconfigure
+        configureAction verbosity distPref useSandbox noAddSource
+        (buildNumJobs buildFlags) mempty [] globalFlags config
+
+    nixShell verbosity distPref globalFlags config $
+      maybeWithSandboxDirOnSearchPath useSandbox $ buildForCommand
+        commandUI verbosity config' distPref buildFlags extraArgs
 
 -- | Actually do the work of building the package. This is separate from
 -- 'buildAction' so that 'testAction' and 'benchmarkAction' do not invoke
@@ -475,6 +461,7 @@ buildActionForCommand commandUI verbosity (buildFlags, buildExFlags) extraArgs g
 build :: Verbosity -> SavedConfig -> FilePath -> BuildFlags -> [String] -> IO ()
 build = buildForCommand (Cabal.buildCommand defaultProgramDb)
 
+-- | Helper function
 buildForCommand :: CommandUI BuildFlags
                 -> Verbosity
                 -> SavedConfig
@@ -483,12 +470,7 @@ buildForCommand :: CommandUI BuildFlags
                 -> [String]
                 -> IO ()
 buildForCommand command verbosity config distPref buildFlags extraArgs =
-  setupWrapper verbosity
-               setupOptions
-               Nothing
-               command
-               mkBuildFlags
-               (const extraArgs)
+  setupWrapper verbosity setupOptions Nothing command mkBuildFlags (const extraArgs)
  where
   setupOptions = defaultSetupScriptOptions { useDistPref = distPref }
 
@@ -537,8 +519,8 @@ replAction (replFlags, buildExFlags) extraArgs globalFlags = do
       -- be done to support sandboxes.
       _ <-
         reconfigure configureAction
-        verbosity distPref useSandbox noAddSource NoFlag
-        mempty [] globalFlags config
+          verbosity distPref useSandbox noAddSource NoFlag
+          mempty [] globalFlags config
       let progDb = defaultProgramDb
           setupOptions = defaultSetupScriptOptions
             { useCabalVersion = orLaterVersion $ mkVersion [1,18,0]
